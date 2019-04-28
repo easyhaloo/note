@@ -217,13 +217,13 @@
 
 #### 拦截器的执行流程
 
-![1556378848678](C:\Users\haloo\AppData\Roaming\Typora\typora-user-images\1556378848678.png)
+![1556378848678](./assets/1556378848678.png)
 
 拦截器的设计主要采取的是：责任链+jdk动态代理来实现拦截效果。
 
 **责任链**
 
-![1556379629881](C:\Users\haloo\AppData\Roaming\Typora\typora-user-images\1556379629881.png)
+![1556379629881](./assets/1556379629881.png)
 
 ​		上面展示的就是Mybatis中责任链的模型，将所有Interceptor绑定在一条链上，一次执行。
 
@@ -244,6 +244,158 @@
 > - 从XML配置文件中读取
 > - 使用注解从接口上获取SQL
 > - 基于Provider的方式，指定类+方法名来生成对应的SQL语句
+
+​		在Mybatis中获取SQL的接口是`SqlSource`，通过将用户传入的参数，以及mapper.xml文件来解析出BoundSql对象，BoundSql就是预处理的SQL。
+
+​		下面将展示一下`SqlSource`的UML：
+
+![image-20190428101459659](assets/image-20190428101459659.png)
+
+​		在上面的类图大致分为两种类型的SQL:	
+
+- 动态SQL
+- 静态SQL
+
+#### 静态SQL
+
+​		RowSqlSource与StaticSqlSource就是用来生成静态SQL的，RawSqlSource是StaticSqlSource的一层装饰器，用来增强StaticSqlSource。帮StaticSqlSource处理了占位符标签里面的内容`#{xx,jdbcType=INTEGER,javaType=Integer}`，以及封装参数映射列表`List<ParameterMapping>`。当真正执行SQL处理的时候，可以借助这个列表来找到对应的参数设置位置。StaticSqlSource的主要就是传递一些上下文信息给BoundSql。执行到这里已经获取到了静态的SQL，剩下的问题在于参数的注入了。
+
+
+
+#### 动态SQL
+
+​		动态SQL的特点在于，当你真正执行SQL的操作的时候，它才会去解析那些动态的标签例如(<if><foreach>,<choose>)等等。因此，执行效率上，明显要低。
+
+​		动态SQL中存在一个`SqlNode`的抽象，它针对不同的动态标签处理都有独立的实现。
+
+![image-20190428105017695](assets/image-20190428105017695.png)
+
+​	上面有个`MixedSqlNode`，这是一个SqlNode的集合。动态SQL的解就是依赖MixedSqlNode来解析动态标签，结合用户传入的参数，然后通过标签解析器来实现sql片段的生成。最后将生成的片段使用`DynamicContext`追加拼接起来。
+
+
+
+#### 如何判断是否为动态SQL？
+
+​		在内部会通过解析语法树来判断，在初始化的时候会维持一个标签处理Map，当遇到的解析标签在Map中存在，那么直接添加到List<SqlNode>中。然后传递给DynamicSqlSource。在真正执行的时候再去依赖SqlNode解析最终的Sql。
+
+​		解析逻辑代码：`XMLScriptBuilder`
+
+```java
+ 		nodeHandlerMap.put("trim", new TrimHandler());
+    nodeHandlerMap.put("where", new WhereHandler());
+    nodeHandlerMap.put("set", new SetHandler());
+    nodeHandlerMap.put("foreach", new ForEachHandler());
+    nodeHandlerMap.put("if", new IfHandler());
+    nodeHandlerMap.put("choose", new ChooseHandler());
+    nodeHandlerMap.put("when", new IfHandler());
+    nodeHandlerMap.put("otherwise", new OtherwiseHandler());
+    nodeHandlerMap.put("bind", new BindHandler());
+```
+
+```java
+protected MixedSqlNode parseDynamicTags(XNode node) {
+    List<SqlNode> contents = new ArrayList<>();
+    NodeList children = node.getNode().getChildNodes();
+    for (int i = 0; i < children.getLength(); i++) {
+      XNode child = node.newXNode(children.item(i));
+      if (child.getNode().getNodeType() == Node.CDATA_SECTION_NODE || child.getNode().getNodeType() == Node.TEXT_NODE) {
+        String data = child.getStringBody("");
+        TextSqlNode textSqlNode = new TextSqlNode(data);
+        if (textSqlNode.isDynamic()) {
+          contents.add(textSqlNode);
+          isDynamic = true;
+        } else {
+          contents.add(new StaticTextSqlNode(data));
+        }
+      } else if (child.getNode().getNodeType() == Node.ELEMENT_NODE) { // issue #628
+        String nodeName = child.getNode().getNodeName();
+        NodeHandler handler = nodeHandlerMap.get(nodeName);
+        if (handler == null) {
+          throw new BuilderException("Unknown element <" + nodeName + "> in SQL statement.");
+        }
+        handler.handleNode(child, contents);
+        isDynamic = true;
+      }
+    }
+    return new MixedSqlNode(contents);
+  }
+```
+
+可以看出上面这段代码，依赖两个点来判断是否为动态：
+
+- 当标签为`ELEMENT_NODE`，也就是<if></if>这种是采取查表法来进行快速判断。
+- 当标签为文本时，也就是`TEXT_NODE`（文本节点），或者`<CDATA_SECTION_NODE>`（预定于内容）,在这种情况下，会去解析全部的文本内容，当文本内容中包含动态内容入`${}`这种标签全匹配时，也被认定为动态SQL。
+
+#### 为什么要使用<script>?
+
+​		当MyBatis解析XMl时，当代码被文本被包含在<script></script>中时，会被当作一个整体传递给`XMLScriptBuilder`解析。
+
+#### LanguageDriver的作用
+
+​		LanguageDriver是MyBatis内部一个解析文本的接口，内部有两个默认的实现`RawLanguageDriver`和`XMLLanguageDriver`
+
+**XMLLanguageDriver**
+
+​	顾名思义，内部采用XML作为语法解析规则。可以解析全部配置，以及Mapper映射文件。当然我们还可以通过实现`LanguageDriver`来扩展自己的语法解析规则。
+
+---
+
+## Mapper代理
+
+> ​		MyBatis内部是通过接口来进行调用的，一般来说接口必须要存在实现类，才可以正确运行，但是还可以通过JDK的动态代理创建一个代理实现。Mapper的执行就是这么干的。
+
+有关Mapper代理的功能实现在`org.apache.ibatis.binding`绑定这个包中。总有有如下几个类：
+
+- MapperMethod 
+- MapperProxy
+- MapperProxyFactory
+- MapperRegister
+
+### MapperMethod
+
+​		MapperMethod这个类，管理着所有的Mapper接口的操作，它通过xml文件执行标签<select>,<update>,<deltete>,<insert>去调用SqlSession的 insert,update,delete,select方法。实质就是一个任务调度器。
+
+### MapperProxy
+
+​		MapperProxy就是Mapper接口的代理实现，当Mapper方法被调用时，创建一个`MapperMethod`，然后通过`MapperMethod`去进行任务调用，执行真正的SQL逻辑。`MapperProxy`为了提升性能，维护了一个`MapperMethod`缓存。
+
+### MapperProxyFactory
+
+​		MapperProxyFactory是创建`MapperProxy`的入口点。再MyBatise内部运用了大量的设计模式，其中就包含工厂设计模式，它强调，一切对象的创建都交给工厂来完成，通过工厂，我们可以实现缓存，日志记录等功能，可以很好的提升性能，也能使调用者从创建对象的细节中解放出来，不比再去关心传递什么参数，选择哪个构造器。
+
+### MapperRegister
+
+​		Mapper注册器，Mybatis启动时，就会通过注册器扫描对应的Mapper接口，然后生成Mapper代理类。它提供了两种扫描的方式：
+
+- 包名+父类
+- 包名
+
+**实现逻辑：**
+
+```java
+	 /**包名+父类
+   * @since 3.2.2
+   */
+  public void addMappers(String packageName, Class<?> superType) {
+    ResolverUtil<Class<?>> resolverUtil = new ResolverUtil<>();
+    resolverUtil.find(new ResolverUtil.IsA(superType), packageName);
+    Set<Class<? extends Class<?>>> mapperSet = resolverUtil.getClasses();
+    for (Class<?> mapperClass : mapperSet) {
+      addMapper(mapperClass);
+    }
+  }
+
+  /**包名
+   * @since 3.2.2
+   */
+  public void addMappers(String packageName) {
+    addMappers(packageName, Object.class);
+  }
+```
+
+
+
+
 
 
 
