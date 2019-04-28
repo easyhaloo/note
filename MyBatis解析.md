@@ -19,7 +19,7 @@
 
 ## 工作流程图
 
-![1556366881504](C:\Users\haloo\AppData\Roaming\Typora\typora-user-images\1556366881504.png)
+![1556366881504](./assets/1556366881504.png)
 
 
 
@@ -47,7 +47,7 @@
 
 下面是`Executor`的`UML`类图
 
- ![1556369423870](C:\Users\haloo\AppData\Roaming\Typora\typora-user-images\1556369423870.png)
+ ![1556369423870](./assets/1556369423870.png)
 
 ​	由Executor总共衍生出6个类来，其中`CachingExecutor`使用的`装饰者模式`，处理查询缓存的，如果查询的`MappedStatement`使用了缓存，并且缓存存在，那么直接从缓存中`load`结果，可以提高查询效率。这就是一级缓存，同一个`SqlSession`范围内有效。
 
@@ -88,7 +88,7 @@
 
 下面是`StatementHandler`的`UML`模型图：
 
-![1556373727680](C:\Users\haloo\AppData\Roaming\Typora\typora-user-images\1556373727680.png)
+![1556373727680](./assets/1556373727680.png)
 
 ​		
 
