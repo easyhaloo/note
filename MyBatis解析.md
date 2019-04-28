@@ -326,6 +326,49 @@ protected MixedSqlNode parseDynamicTags(XNode node) {
 - 当标签为`ELEMENT_NODE`，也就是<if></if>这种是采取查表法来进行快速判断。
 - 当标签为文本时，也就是`TEXT_NODE`（文本节点），或者`<CDATA_SECTION_NODE>`（预定于内容）,在这种情况下，会去解析全部的文本内容，当文本内容中包含动态内容入`${}`这种标签全匹配时，也被认定为动态SQL。
 
+### Provider
+
+> ​	provider的方式是MyBatis新提供生成的SQL的一种途径，通过编程的方式来实现SQL的自动生成。
+
+如何实现编程生成SQL，现在只需要实现`ProviderMethodResolver`接口，然后在Mapper的方法上加上`@xxProvider`注解，最后在实现类中生成对应的方法即可。
+
+**例子：**
+
+```java
+interface ProvideMethodResolverMapper {
+
+    @SelectProvider(type = MethodResolverBasedSqlProvider.class)
+    int select();
+
+    @SelectProvider(type = MethodResolverBasedSqlProvider.class, method = "provideSelect2Sql")
+    int select2();
+
+    @SelectProvider(type = CustomMethodResolverBasedSqlProvider.class)
+    int select3();
+
+    @SelectProvider(type = CustomMethodResolverBasedSqlProvider.class)
+    int select4();
+
+    @DeleteProvider(type = ReservedMethodNameBasedSqlProvider.class)
+    int delete();
+
+    class MethodResolverBasedSqlProvider implements ProviderMethodResolver {
+      public static String select() {
+        return "SELECT 1 FROM INFORMATION_SCHEMA.SYSTEM_USERS";
+      }
+
+      public static String select2() {
+        throw new IllegalStateException("This method should not called when specify `method` attribute on @SelectProvider.");
+      }
+
+      public static String provideSelect2Sql() {
+        return "SELECT 2 FROM INFORMATION_SCHEMA.SYSTEM_USERS";
+      }
+    }
+```
+
+​	`MethodResolverBasedSqlProvider`提供两种映射的方式，一种是默认跟Mapper接口名称保持一致，还有一种是指定方法名。
+
 #### 为什么要使用<script>?
 
 ​		当MyBatis解析XMl时，当代码被文本被包含在<script></script>中时，会被当作一个整体传递给`XMLScriptBuilder`解析。
