@@ -375,6 +375,8 @@ protected MixedSqlNode parseDynamicTags(XNode node) {
 
  	 MapperProxyFactory是创建`MapperProxy`的入口点。再MyBatise内部运用了大量的设计模式，其中就包含工厂设计模式，它强调，一切对象的创建都交给工厂来完成，通过工厂，我们可以实现缓存，日志记录等功能，可以很好的提升性能，也能使调用者从创建对象的细节中解放出来，不比再去关心传递什么参数，选择哪个构造器。
 
+---
+
 
 
 ### MapperRegister
