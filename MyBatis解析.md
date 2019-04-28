@@ -351,17 +351,25 @@ protected MixedSqlNode parseDynamicTags(XNode node) {
 - MapperProxyFactory
 - MapperRegister
 
+
+
 ### MapperMethod
 
 ​		MapperMethod这个类，管理着所有的Mapper接口的操作，它通过xml文件执行标签<select>,<update>,<deltete>,<insert>去调用SqlSession的 insert,update,delete,select方法。实质就是一个任务调度器。
+
+
 
 ### MapperProxy
 
 ​		MapperProxy就是Mapper接口的代理实现，当Mapper方法被调用时，创建一个`MapperMethod`，然后通过`MapperMethod`去进行任务调用，执行真正的SQL逻辑。`MapperProxy`为了提升性能，维护了一个`MapperMethod`缓存。
 
+
+
 ### MapperProxyFactory
 
 ​		MapperProxyFactory是创建`MapperProxy`的入口点。再MyBatise内部运用了大量的设计模式，其中就包含工厂设计模式，它强调，一切对象的创建都交给工厂来完成，通过工厂，我们可以实现缓存，日志记录等功能，可以很好的提升性能，也能使调用者从创建对象的细节中解放出来，不比再去关心传递什么参数，选择哪个构造器。
+
+
 
 ### MapperRegister
 
@@ -371,6 +379,8 @@ protected MixedSqlNode parseDynamicTags(XNode node) {
 - 包名
 
 **实现逻辑：**
+
+
 
 ```java
 	 /**包名+父类
