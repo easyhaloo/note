@@ -1,4 +1,4 @@
-## 。MySQL
+## MySQL
 
 > MySQL是一款能运行在PC机器上的，高度灵活配置的关系型数据库。它被设计得将查询处理(Query Processing) 以及其他任务系统(Server Task)和数据的存储/提取相分离。
 
@@ -211,6 +211,85 @@ InnoDB采用的是两阶段锁协议(two-phase locking protocl)。
 - SELECT … FOR UPDATE
 
 另外，MySQL在服务层支持几种锁定实现：LOCK TABLES和UNLOCK TABLES。这些并不是事务的代理品。当需要事务时，应该还是选择事务型存储引擎。
+
+---
+
+### 5、MySQL存储引擎
+
+MySQL中存在多种存储引擎，不同的存储引擎保存数据和索引的方式是不同的。但是表的定义是在MySQL服务层中统一处理的。MySQL将每个数据库保存为数据目录下的一个子目录，创建表时，MySQL会在对应数据库的目录下，创建一个跟表同名的*.frm*文件保存表定义。
+
+MySQL的大小写敏感跟具体平台相关。Windows中大小写不敏感，在类Unix中则是敏感。
+
+我们看下表的信息：
+
+| 列名称         | 说明                                                         |
+| -------------- | ------------------------------------------------------------ |
+| Name           | 表名                                                         |
+| Engine         | 表的存储引擎                                                 |
+| Row_format     | 行的格式，对于MyISAM可选值为Dynamic(变长 varchar等)、Fixed(char)、Compressed(压缩表) |
+| Rows           | 表中的行数，对于InnoDB来说只是一个估计值                     |
+| Avg_row_length | 平均每行包含的字节数                                         |
+| Data_length    | 表数据的大小(byte)                                           |
+| Index_length   | 索引大小(byte)                                               |
+| Data_free      | 对于MyISAM，表示已分配但目前没有使用的空间。这部分空间包括了之前删除的行，以及后续可以被INSERT利用到的空间。 |
+| Auto_increment | 下一个AUTO_INCREMENT值，跟自增策略有关                       |
+| Create_time    | 表的创建时间                                                 |
+| Update_time    | 表数据的最后修改时间                                         |
+| Check_time     | 使用check table命令或者myisamchk工具最后一次检查表的时间     |
+| Collation      | 表的默认字符集和字符列排序规则                               |
+| Checksum       | 如果启用，保存的是整个表的实时校验和                         |
+| Create_options | 创建表时制定的其他选项                                       |
+| Comment        | 包含一些额外的信息，对于MyISAM表，保存的是表在创建时带的注释。对于InnoDB表，则保存的是InnoDB表空间的剩余空间信息。如果是一个视图，则该列包含“view”的文本字样。 |
+
+
+
+
+
+
+
+##### 转换表的存储引擎
+
+转换表存储引擎的方式有很多种，每种都有各自的优缺点。接下来我们将展示三种方式：
+
+- **ALTER TABLE**
+
+  将表从一个引擎修改为另一个引擎的最简单方式是执行下面的的SQL语句：
+
+  ```mysql
+  alter table mytable engine = InnoDB;
+  ```
+
+  这种方式适用于任何引擎。但是会耗费很长时间。MySQL会按行将数据从原表复制到另外一张新表中。在复制期间可能会消耗系统的所有I/O能力，同时在原表上加上读锁。还有一点需要注意的是，切换存储引擎，将会失去和原引擎相关的所有特性。例如：如果将InnoDB转换为MyISAM，然后再转回，原InnoDB表上所有的外键将丢失。
+
+- **导入导出**
+
+  可食用**mysqldump**工具将数据导出到文件，然后修改文件中CREATE TABLE语句的存储引擎。
+
+  ⚠️：MySQL中不允许存在表名相同的两张表，即使它们使用的存储引擎不同。还有**mysqldump**
+
+  会自动在CREATE TABLE语句前面加上DROP TABLE语句，可能会导致数据丢失。
+
+- **创建和查询**
+
+  结合了第一种的高效和第二种的安全。不需要导出整个表的数据，而是先创建一个新存储引擎的表，然后利用INSERT…SELECT语句来导数据：
+
+  ```mysql
+  create table innodb_table like myisam_table;
+  alter table innodb_table engine=InnoDB;
+  insert into innodb_table select * from myisam_table;
+  ```
+
+  当数据量大时，可以分批处理。针对每一段数据执行事务提交操作，避免大事务产生过多的*undo*。
+
+  ```mysql
+  start transaction;
+  insert into innodb_table select * from myisam_table where id between x and y; 
+  commit;
+  ```
+
+  这种方式可以保留原表。
+
+  
 
 
 

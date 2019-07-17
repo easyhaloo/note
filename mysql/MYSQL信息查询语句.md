@@ -2,7 +2,7 @@
 
 1. 查看每张表的每列的详细
 
-   ```sql
+   ```mysql
    show full columns form tablename;
    ```
 
@@ -35,5 +35,13 @@
    set SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
    ```
 
-5. 
+5. 查看表的相关信息
+
+   ```mysql
+   show table status like 'user' \G
+   ```
+
+   
+
+6. 
 
